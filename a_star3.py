@@ -15,11 +15,23 @@ import os
 from matplotlib import pyplot as plt
 from PIL import Image
 
+def my_time(fun):
+    def f(*args):
+        begin = time.time()
+        fu = fun(*args)
+        end = time.time()
+        print(str(fun.__name__),'time:',1000*(end-begin),'ms')
+        return fu
+    return f
+
 class Video:
     def __init__(self,dire,m,my_map):
         self.dire = dire
         self.max = m
         self.map = my_map
+        
+        if not os.path.isdir(self.dire):
+            os.makedirs(self.dire)
     
     def rm_img(self):
         f_list = os.listdir(self.dire)
@@ -35,39 +47,72 @@ class Video:
         f_img = f_img.resize((i,j))
         mat = np.array(f_img)
         return mat
-                
+    
+    @my_time            
     def save_img(self,ls,funs):
         img_mat = np.zeros((*(self.map.shape),3))
         img_mat = self.map.reshape((*(self.map.shape),1)) + img_mat
         #img_mat = self.resize(img_mat)
         for j,fun in zip(ls,funs):
-            for i in j:
-                img_mat = fun(j,img_mat)
+            img_mat = fun(j,img_mat)
         plt.imsave(self.dire+str(time.time())+'.png',img_mat)
-        
-    def set_red(self,node_list,mat):
-        for i in node_list:
-            mat[(*i,0)] = self.max
-            mat[(*i,1)] = 0
-            mat[(*i,2)] = self.max
-        return mat
-            
-    def set_blue(self,node_list,mat):
-        for i in node_list:
-            mat[(*i,0)] = 0
-            mat[(*i,1)] = self.max
-            mat[(*i,2)] = self.max
+    
+    @my_time
+    def setting(fun):
+        def f(self,node_list,mat):
+            for i in node_list:
+                mat = fun(self,mat,i)
+            return mat    
+        return f
+    
+    @setting
+    def red(self,mat,i):
+        mat[(*i,0)] = self.max
+        mat[(*i,1)] = 0
+        mat[(*i,2)] = self.max
         return mat
     
-    def set_green(self,node_list,mat):
-        for i in node_list:
-            mat[(*i,0)] = self.max
-            mat[(*i,1)] = self.max
-            mat[(*i,2)] = 0
+    @setting
+    def blue(self,mat,i):
+        mat[(*i,0)] = 0
+        mat[(*i,1)] = self.max
+        mat[(*i,2)] = self.max
         return mat
+    
+    @setting    
+    def green(self,mat,i):
+        mat[(*i,0)] = self.max
+        mat[(*i,1)] = self.max
+        mat[(*i,2)] = 0
+        return mat
+    
+# =============================================================================
+#     @my_time     
+#     def set_red(self,node_list,mat):
+#         for i in node_list:
+#             mat[(*i,0)] = self.max
+#             mat[(*i,1)] = 0
+#             mat[(*i,2)] = self.max
+#         return mat
+#     
+#     @my_time        
+#     def set_blue(self,node_list,mat):
+#         for i in node_list:
+#             mat[(*i,0)] = 0
+#             mat[(*i,1)] = self.max
+#             mat[(*i,2)] = self.max
+#         return mat
+#     
+#     @my_time 
+#     def set_green(self,node_list,mat):
+#         for i in node_list:
+#             mat[(*i,0)] = self.max
+#             mat[(*i,1)] = self.max
+#             mat[(*i,2)] = 0
+#         return mat
+# =============================================================================
     
 
-                  
         
 # =============================================================================
 #     def save_img2(self,li):
@@ -84,7 +129,7 @@ class Video:
 # 
 # =============================================================================
 class My_map:
-    def __init__(self,img):
+    def __init__(self,img,rate):
         self.map = plt.imread(img)
         if self.map.shape[-1] > 1:
             self.map = self.map[:,:,0]
@@ -95,6 +140,7 @@ class My_map:
         self.open_list = []
         self.close_list = []
         self.walkable = self.map.max()
+        self.rate = rate
         
         self.vdieo = Video('picture/',self.walkable,self.map)
         self.vdieo.rm_img()
@@ -111,7 +157,7 @@ class My_map:
         dx = np.abs(self.end[0] - node[0])
         dy = np.abs(self.end[1] - node[1])
         d = min(dx,dy)*4 + max(dx,dy)*10
-        return d*10
+        return d*self.rate
     
     def get_f(self,node):
         return self.g[node] + self.h[node]
@@ -156,7 +202,7 @@ class My_map:
             node = tuple(self.father[node[0],node[1],:])
             l.append(node)
             #self.save_img2(l)
-            self.vdieo.save_img(l,self.vdieo.set_red)
+            self.vdieo.save_img((l,),(self.vdieo.red,))
         return l
     
     def set_begin_end(self,begin,end):
@@ -179,7 +225,7 @@ class My_map:
     
            
 def a_star(map_path,begin,end):
-    my_map = My_map(map_path)
+    my_map = My_map(map_path,0.1)
     my_map.set_begin_end(begin,end)
     while not (my_map.end in my_map.open_list) and my_map.open_list:
         node = my_map.ergodic_list()
@@ -187,13 +233,13 @@ def a_star(map_path,begin,end):
         my_map.update_open_list(node,neibors)
         #my_map.save_img()   
         my_map.vdieo.save_img((my_map.open_list,my_map.close_list),\
-        (my_map.vdieo.set_green,my_map.vdieo.set_blue))
+        (my_map.vdieo.green,my_map.vdieo.blue))
     return my_map.return_way(end)
 
 if __name__ == '__main__':
-    path = 'map2.png'
-    begin = (10,10)
-    end = (170,230)
+    path = 'map4.png'
+    begin = (49,0)
+    end = (49,49)
     my_map = plt.imread(path)
     print(my_map[begin],my_map[end])
     way = a_star(path,begin,end)
